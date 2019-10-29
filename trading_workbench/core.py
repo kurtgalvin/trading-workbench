@@ -3,10 +3,11 @@ import pandas as pd
 
 class BackTest:
     def __init__(self, strategy, data):
-        x = strategy(data)
-        print(x.sma)
-        print(x.sma.now)
-        print(x.sma.prev)
+        self.strategy = strategy(data)
+
+    def run(self):
+        for i in self.strategy:
+            pass
 
 
 class Strategy:
@@ -15,7 +16,7 @@ class Strategy:
 
         largest_prev = 0
         for v in self._indicators.values():
-            v.build(df)
+            v.build(df, strategy=self)
             if v.prev_count > largest_prev:
                 largest_prev = v.prev_count
         
@@ -25,18 +26,24 @@ class Strategy:
             if first > largest_valid:
                 largest_valid = first
 
-        first_index = largest_prev + largest_valid
-        for v in self._indicators.values():
-            v.index = first_index
+        self.index = largest_prev + largest_valid
+        self.max_index = 10
 
-    def open(self, long=False, short=False):
-        if long:
+    def trade(self, direction):
+        if direction == 'long':
             pass
-        elif short:
+        elif direction == 'short':
             pass
 
-    def close(self):
-        pass
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.index <= self.max_index:
+            print(self.index)
+            self.index += 1
+            return None
+        raise StopIteration
 
     def __init_subclass__(cls):
         indicators = {}
@@ -51,28 +58,25 @@ class Indicator:
         self.indicator = indicator
         self.params = params
         self.prev_count = prev
-        self._index = None
         self._result = None
 
-    def build(self, df):
+    def build(self, df, strategy=None):
         self._result = self.indicator(df, *self.params)
+        if isinstance(strategy, Strategy):
+            self._strategy = strategy
         return self._result
 
     @property
     def index(self):
-        return self._index
-
-    @index.setter
-    def index(self, value):
-        self._index = value
+        return self._strategy.index
 
     @property
     def now(self):
-        return self._result.iloc[self._index]
+        return self._result.iloc[self.index]
 
     @property
     def prev(self):
-        return self._result.iloc[self._index-self.prev_count:self._index].iloc[::-1]
+        return self._result.iloc[self.index-self.prev_count:self.index].iloc[::-1]
 
     def __str__(self):
         return str(self._result)
@@ -85,11 +89,8 @@ def SMA(df, n):
 class TestStrategy(Strategy):
     sma = Indicator(SMA, params=(2,), prev=2)
 
-    def open_trade(self):
-        pass
-
-    def close_trade(self):
-        pass
+    def next(self):
+        print('here')
 
 
 if __name__ == '__main__':
@@ -100,3 +101,4 @@ if __name__ == '__main__':
         'close': [1.5,2.5,3.5,4.5,3.5,2.5,1.5,2.5,3.5,4.5,3.5,2.5,1.5]
     }
     x = BackTest(TestStrategy, data)
+    x.run()
