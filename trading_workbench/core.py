@@ -8,6 +8,10 @@ class BackTest:
     def run(self):
         for i in self.strategy:
             pass
+        total_profit = 0
+        for i in self.strategy.positions:
+            total_profit += i.profit
+        print(total_profit)
 
 
 class Strategy:
@@ -26,23 +30,53 @@ class Strategy:
             if first > largest_valid:
                 largest_valid = first
 
+        self.df = df
         self.index = largest_prev + largest_valid
-        self.max_index = 10
+        self.max_index = df.last_valid_index()
 
-    def trade(self, direction):
+    @property
+    def data(self):
+        return self.df.iloc[self.index]
+
+    @property
+    def long_open(self):
+        return bool(self.long_pos)
+
+    @property
+    def short_open(self):
+        return bool(self.short_pos)
+
+    def open_trade(self, direction, n=1):
         if direction == 'long':
-            pass
+            if self.long_pos:
+                self.long_pos.add_n(self.data.close, n, self.index)
+            else:
+                self.long_pos = Position(self.data.close, direction, n, self.index)
         elif direction == 'short':
-            pass
+            if self.short_pos:
+                self.short_pos.add_n(self.data.close, n, self.index)
+            else:
+                self.short_pos = Position(self.data.close, direction, n, self.index)
+
+    def close_trade(self, direction):
+        if direction == 'long' and self.long_pos:
+            self.positions.append(self.long_pos.close(self.data.close))
+            self.long_pos = None
+        elif direction == 'short' and self.short_pos:
+            self.positions.append(self.short_pos.close(self.data.close))
+            self.short_pos = None
 
     def __iter__(self):
+        self.positions = []
+        self.long_pos = None
+        self.short_pos = None
         return self
 
     def __next__(self):
         if self.index <= self.max_index:
-            print(self.index)
+            self.next()
             self.index += 1
-            return None
+            return self.index - 1
         raise StopIteration
 
     def __init_subclass__(cls):
@@ -82,6 +116,37 @@ class Indicator:
         return str(self._result)
 
 
+class Position:
+    def __init__(self, price, direction, n, index):
+        self.transactions = [{
+            'price': price,
+            'n': n,
+            'index': index
+        }]
+        self.profit = 0
+        self.open = True
+        self.direction = direction
+
+    def add_n(self, price, n, index):
+        self.transactions.append({
+            'price': price,
+            'n': n,
+            'index': index
+        })
+    
+    def close(self, price):
+        self.open = False
+        self.close_price = price
+        for t in self.transactions:
+            if self.direction == 'long':
+                self.profit += (price-t['price'])*t['n']
+            elif self.direction == 'short':
+                self.profit += (t['price']-price)*t['n']
+        return self
+
+
+
+
 def SMA(df, n):
     df['sma'] = df['close'].rolling(n).mean()
     return df['sma']
@@ -90,7 +155,16 @@ class TestStrategy(Strategy):
     sma = Indicator(SMA, params=(2,), prev=2)
 
     def next(self):
-        print('here')
+        if self.data.close > self.sma.now:
+            if self.short_open:
+                self.close_trade('short')
+            if not self.long_open:
+                self.open_trade('long')
+        else:
+            if self.long_open:
+                self.close_trade('long')
+            if not self.short_open:
+                self.open_trade('short')
 
 
 if __name__ == '__main__':
