@@ -1,17 +1,30 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class BackTest:
     def __init__(self, strategy, data):
         self.strategy = strategy(data)
 
+    @property
+    def df(self):
+        return self.strategy.df
+
     def run(self):
         for i in self.strategy:
             pass
         total_profit = 0
+        total_wins = 0
+        total_losses = 0
         for i in self.strategy.positions:
+            if i.profit > 0:
+                total_wins += 1
+            if i.profit < 0:
+                total_losses += 1
             total_profit += i.profit
-        print(total_profit)
+        print("Profit:", total_profit)
+        print("Wins:", total_wins)
+        print("Losses:", total_losses)
 
 
 class Strategy:
@@ -151,8 +164,16 @@ def SMA(df, n):
     df['sma'] = df['close'].rolling(n).mean()
     return df['sma']
 
+def bollinger_bands(df, n, dev):
+    deviation = df['close'].rolling(n).std()*dev
+    df['bb_mid'] = df['close'].rolling(n).mean()
+    df['bb_upper'] = df['bb_mid'] + deviation
+    df['bb_lower'] = df['bb_mid'] - deviation
+    return df[['bb_upper', 'bb_mid', 'bb_lower']]
+
 class TestStrategy(Strategy):
     sma = Indicator(SMA, params=(2,), prev=2)
+    bb = Indicator(bollinger_bands, params=(2,2))
 
     def next(self):
         if self.data.close > self.sma.now:
