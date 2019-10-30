@@ -23,6 +23,7 @@ class TestStrategy(Strategy):
     def next(self):
         pos_long = self.positions_long
         pos_short = self.positions_short
+        
         # open
         if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower:
             stop_price = self.bb.now.bb_lower - (self.bb.now.bb_mid - self.bb.now.bb_lower)
@@ -33,11 +34,9 @@ class TestStrategy(Strategy):
 
         #close
         if self.data.close > self.bb.now.bb_mid and pos_long:
-            for pos in pos_long:
-                self.close_position(pos)
+            self.close_positions('long')
         elif self.data.close < self.bb.now.bb_mid and pos_short:
-            for pos in pos_short:
-                self.close_position(pos)
+            self.close_positions('short')
 
 if __name__ == '__main__':
     data = Fabricator({'file': 'env/oanda.ini'}, 'EUR_USD', 'M5')

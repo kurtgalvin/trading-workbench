@@ -56,8 +56,8 @@ class BackTest:
                 losses.append(i.profit)
             total_profit += i.profit
         print("Profit:", total_profit)
-        print("Wins:", len(wins), "Avg:", sum(wins)/len(wins), "Top:", top_of_list(wins, 5, 'max'))
-        print("Losses:", len(losses), "Avg:", sum(losses)/len(losses), "Top:", top_of_list(losses, 5, 'min'))
+        print("Wins:", len(wins), "Avg:", sum(wins)/len(wins), "Top:", top_of_list(wins, 5, 'max'), "Top 100 avg:", sum(top_of_list(wins, 100, 'max'))/100)
+        print("Losses:", len(losses), "Avg:", sum(losses)/len(losses), "Top:", top_of_list(losses, 5, 'min'), "Top 100 avg:", sum(top_of_list(losses, 100, 'min'))/100)
 
 
 class Strategy:
@@ -109,10 +109,20 @@ class Strategy:
             closed_pos = self._positions.pop(closed_pos_index).close(self.data.close)
             self.closed_positions.append(closed_pos)
 
-    def close_positions(self):
-        for pos in self._positions:
+    def close_positions(self, direction='all'):
+        positions_to_close = None
+        if direction.lower() == 'long':
+            positions_to_close = self.positions_long
+            self._positions = self.positions_short
+        elif direction.lower() == 'short':
+            positions_to_close = self.positions_short
+            self._positions = self.positions_long
+        else:
+            positions_to_close = self._positions
+            self._positions = []
+        for pos in positions_to_close:
             self.closed_positions.append(pos.close(self.data.close))
-        self._positions = []
+        return 
 
     def trigger_stops(self):
         for pos in self._positions:
