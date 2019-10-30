@@ -14,21 +14,23 @@ class BackTest:
         for i in self.strategy:
             pass
         total_profit = 0
-        total_wins = 0
-        total_losses = 0
-        for i in self.strategy.positions:
+        wins = []
+        losses = []
+        for i in self.strategy.closed_positions:
             if i.profit > 0:
-                total_wins += 1
+                wins.append(i.profit)
             if i.profit < 0:
-                total_losses += 1
+                losses.append(i.profit)
             total_profit += i.profit
         print("Profit:", total_profit)
-        print("Wins:", total_wins)
-        print("Losses:", total_losses)
+        print("Wins:", len(wins), "Avg:", sum(wins)/len(wins), "best:", max(wins))
+        print("Losses:", len(losses), "Avg:", sum(losses)/len(losses), "best:", min(losses))
 
 
 class Strategy:
     def __init__(self, data):
+        self._positions = []
+        self.closed_positions = []
         df = pd.DataFrame(data)
 
         largest_prev = 0
@@ -52,41 +54,45 @@ class Strategy:
         return self.df.iloc[self.index]
 
     @property
-    def long_open(self):
-        return bool(self.long_pos)
+    def positions(self):
+        return self._positions
 
     @property
-    def short_open(self):
-        return bool(self.short_pos)
+    def positions_long(self):
+        return list(filter(lambda x: x.is_long, self._positions))
 
-    def open_trade(self, direction, n=1):
-        if direction == 'long':
-            if self.long_pos:
-                self.long_pos.add_n(self.data.close, n, self.index)
-            else:
-                self.long_pos = Position(self.data.close, direction, n, self.index)
-        elif direction == 'short':
-            if self.short_pos:
-                self.short_pos.add_n(self.data.close, n, self.index)
-            else:
-                self.short_pos = Position(self.data.close, direction, n, self.index)
+    @property
+    def positions_short(self):
+        return list(filter(lambda x: x.is_short, self._positions))
 
-    def close_trade(self, direction):
-        if direction == 'long' and self.long_pos:
-            self.positions.append(self.long_pos.close(self.data.close))
-            self.long_pos = None
-        elif direction == 'short' and self.short_pos:
-            self.positions.append(self.short_pos.close(self.data.close))
-            self.short_pos = None
+    def open_position(self, direction, n=1, stop_price=False):
+        self._positions.append(Position(self.data.close, direction, n, self.index, stop_price=stop_price))
+
+    def close_position(self, position=None):
+        if not position:
+            self.closed_positions.append(self._positions.pop(0).close(self.data.close))
+        else:
+            closed_pos_index = self._positions.index(position)
+            closed_pos = self._positions.pop(closed_pos_index).close(self.data.close)
+            self.closed_positions.append(closed_pos)
+
+    def close_positions(self):
+        for pos in self._positions:
+            self.closed_positions.append(pos.close(self.data.close))
+        self._positions = []
+
+    def trigger_stops(self):
+        for pos in self._positions:
+            pos.trigger_stop(self.data.close)
 
     def __iter__(self):
-        self.positions = []
-        self.long_pos = None
-        self.short_pos = None
+        self._positions = []
+        self.closed_positions = []
         return self
 
     def __next__(self):
         if self.index <= self.max_index:
+            self.trigger_stops()
             self.next()
             self.index += 1
             return self.index - 1
@@ -130,70 +136,41 @@ class Indicator:
 
 
 class Position:
-    def __init__(self, price, direction, n, index):
-        self.transactions = [{
-            'price': price,
-            'n': n,
-            'index': index
-        }]
-        self.profit = 0
-        self.open = True
+    def __init__(self, price, direction, n, index, stop_price=False):
+        self.price = price
         self.direction = direction
+        self.n = n
+        self.index = index
+        self.stop_price = stop_price
+        self.profit = 0
 
-    def add_n(self, price, n, index):
-        self.transactions.append({
-            'price': price,
-            'n': n,
-            'index': index
-        })
+    @property
+    def is_long(self):
+        return bool(self.direction == 'long')
+
+    @property
+    def is_short(self):
+        return bool(self.direction == 'short')
+
+    def move_stop(self, stop_price):
+        self.stop_price = stop_price
+
+    def trigger_stop(self, price):
+        if not self.stop_price:
+            return False
+
+        if self.direction == 'long' and price < self.stop_price:
+            self.close(price)
+            return True
+        elif self.direction == 'short' and price > self.stop_price:
+            self.close(price)
+            return True
+        return False
     
     def close(self, price):
-        self.open = False
         self.close_price = price
-        for t in self.transactions:
-            if self.direction == 'long':
-                self.profit += (price-t['price'])*t['n']
-            elif self.direction == 'short':
-                self.profit += (t['price']-price)*t['n']
+        if self.direction == 'long':
+            self.profit += (price-self.price)*self.n
+        elif self.direction == 'short':
+            self.profit += (self.price-price)*self.n
         return self
-
-
-
-
-def SMA(df, n):
-    df['sma'] = df['close'].rolling(n).mean()
-    return df['sma']
-
-def bollinger_bands(df, n, dev):
-    deviation = df['close'].rolling(n).std()*dev
-    df['bb_mid'] = df['close'].rolling(n).mean()
-    df['bb_upper'] = df['bb_mid'] + deviation
-    df['bb_lower'] = df['bb_mid'] - deviation
-    return df[['bb_upper', 'bb_mid', 'bb_lower']]
-
-class TestStrategy(Strategy):
-    sma = Indicator(SMA, params=(2,), prev=2)
-    bb = Indicator(bollinger_bands, params=(2,2))
-
-    def next(self):
-        if self.data.close > self.sma.now:
-            if self.short_open:
-                self.close_trade('short')
-            if not self.long_open:
-                self.open_trade('long')
-        else:
-            if self.long_open:
-                self.close_trade('long')
-            if not self.short_open:
-                self.open_trade('short')
-
-
-if __name__ == '__main__':
-    data = {
-        'open': [1,2,3,4,3,2,1,2,3,4,3,2,1],
-        'high': [2,3,4,5,4,3,2,3,4,5,4,3,2],
-        'low': [1,2,3,4,3,2,1,2,3,4,3,2,1],
-        'close': [1.5,2.5,3.5,4.5,3.5,2.5,1.5,2.5,3.5,4.5,3.5,2.5,1.5]
-    }
-    x = BackTest(TestStrategy, data)
-    x.run()

@@ -5,6 +5,7 @@ import sys
 sys.path.insert(1, 'C:/Users/Kurt/Desktop/Maverick/maverick')
 from fabricator import Fabricator
 
+
 def SMA(df, n):
     df['sma'] = df['close'].rolling(n).mean()
     return df['sma']
@@ -20,17 +21,23 @@ class TestStrategy(Strategy):
     bb = Indicator(bollinger_bands, params=(20,2))
 
     def next(self):
-        if self.data.close < self.bb.now.bb_lower:
-            if not self.long_open:
-                self.open_trade('long', n=1000)
-        elif self.data.close > self.bb.now.bb_upper:
-            if not self.short_open:
-                self.open_trade('short', n=1000)
+        pos_long = self.positions_long
+        pos_short = self.positions_short
+        # open
+        if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower:
+            stop_price = self.bb.now.bb_lower - (self.bb.now.bb_mid - self.bb.now.bb_lower)
+            self.open_position('long', n=1000, stop_price=stop_price)
+        elif self.data.open > self.bb.now.bb_upper and self.data.close < self.bb.now.bb_upper:
+            stop_price = self.bb.now.bb_upper + (self.bb.now.bb_upper - self.bb.now.bb_mid)
+            self.open_position('short', n=1000, stop_price=stop_price)
 
-        if self.data.close > self.bb.now.bb_mid and self.long_open:
-            self.close_trade('long')
-        elif self.data.close < self.bb.now.bb_mid and self.short_open:
-            self.close_trade('short')
+        #close
+        if self.data.close > self.bb.now.bb_mid and pos_long:
+            for pos in pos_long:
+                self.close_position(pos)
+        elif self.data.close < self.bb.now.bb_mid and pos_short:
+            for pos in pos_short:
+                self.close_position(pos)
 
 if __name__ == '__main__':
     data = Fabricator({'file': 'env/oanda.ini'}, 'EUR_USD', 'M5')
