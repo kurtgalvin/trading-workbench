@@ -2,6 +2,39 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def top_of_list(list_: list, n: int, mm: str) -> list:
+    ''' Get a list of the top values by min or max.
+    Args
+    ----
+    list_ : all the values.\n
+    n : number of top results to display.\n
+    mm : 'min' or 'max' top results. \n
+    '''
+    is_max = bool(mm.lower() == 'max')
+    is_min = bool(mm.lower() == 'min')
+    result = []
+    for li in list_:
+        if len(result) < n:
+            for i, res in enumerate(result):
+                if is_max and li >= res:
+                    result.insert(i, li)
+                    break
+                elif is_min and li <= res:
+                    result.insert(i, li)
+                    break
+            else:
+                result.append(li)
+        else:
+            for i, res in enumerate(result):
+                if is_max and li >= res:
+                    result = result[:i] + [li] + result[i:len(result)-1]
+                    break
+                if is_min and li <= res:
+                    result = result[:i] + [li] + result[i:len(result)-1]
+                    break
+    return [round(i, 3) for i in result]
+
+
 class BackTest:
     def __init__(self, strategy, data):
         self.strategy = strategy(data)
@@ -23,8 +56,8 @@ class BackTest:
                 losses.append(i.profit)
             total_profit += i.profit
         print("Profit:", total_profit)
-        print("Wins:", len(wins), "Avg:", sum(wins)/len(wins), "best:", max(wins))
-        print("Losses:", len(losses), "Avg:", sum(losses)/len(losses), "best:", min(losses))
+        print("Wins:", len(wins), "Avg:", sum(wins)/len(wins), "Top:", top_of_list(wins, 5, 'max'))
+        print("Losses:", len(losses), "Avg:", sum(losses)/len(losses), "Top:", top_of_list(losses, 5, 'min'))
 
 
 class Strategy:
@@ -174,3 +207,6 @@ class Position:
         elif self.direction == 'short':
             self.profit += (self.price-price)*self.n
         return self
+
+if __name__ == '__main__':
+    print(top_of_list([1, 2, 2, 1, 4, 6, 2, 3], 4, 'min'))
