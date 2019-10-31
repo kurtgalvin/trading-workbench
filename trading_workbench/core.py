@@ -56,6 +56,20 @@ class BackTest:
         print("Profit:", total_profit)
         print("Wins:", len(wins), "Avg:", round(sum(wins)/len(wins), 3), "Top:", top_of_list(wins, 5, 'max'), "Top 100 avg:", round(sum(top_of_list(wins, 100, 'max'))/100, 3))
         print("Losses:", len(losses), "Avg:", round(sum(losses)/len(losses), 3), "Top:", top_of_list(losses, 5, 'min'), "Top 100 avg:", round(sum(top_of_list(losses, 100, 'min'))/100, 3))
+    
+    def plot(self):
+        if hasattr(self.strategy, '_meta'):
+            for i in self.strategy._meta.plot:
+                plt.plot(self.df[i])
+        else:
+            plt.plot(self.df.close)
+        long_pos = list(filter(lambda x: x.is_long, self.strategy.closed_positions))
+        short_pos = list(filter(lambda x: x.is_short, self.strategy.closed_positions))
+        plt.plot([i.index for i in long_pos], [i.price for i in long_pos], '>', color='#77dd77')
+        plt.plot([i.close_index for i in long_pos], [i.close_price for i in long_pos], '<', color='#77dd77')
+        plt.plot([i.index for i in short_pos], [i.price for i in short_pos], '>', color='#ff6961')
+        plt.plot([i.close_index for i in short_pos], [i.close_price for i in short_pos], '<', color='#ff6961')
+        plt.show()
 
 
 class Strategy:
@@ -102,13 +116,15 @@ class Strategy:
 
     def close_position(self, position=None):
         if not position:
-            self.closed_positions.append(self._positions.pop(0).close(self.data.close))
+            self.closed_positions.append(self._positions.pop(0).close(self.data.close, self.index))
         else:
             closed_pos_index = self._positions.index(position)
-            closed_pos = self._positions.pop(closed_pos_index).close(self.data.close)
+            closed_pos = self._positions.pop(closed_pos_index).close(self.data.close, self.index)
             self.closed_positions.append(closed_pos)
 
     def close_positions(self, direction='all'):
+        ''' Close all positions in a given direction.
+        '''
         positions_to_close = None
         if direction.lower() == 'long':
             positions_to_close = self.positions_long
@@ -120,12 +136,12 @@ class Strategy:
             positions_to_close = self._positions
             self._positions = []
         for pos in positions_to_close:
-            self.closed_positions.append(pos.close(self.data.close))
+            self.closed_positions.append(pos.close(self.data.close, self.index))
         return 
 
     def trigger_stops(self):
         for pos in self._positions:
-            pos.trigger_stop(self.data.close)
+            pos.trigger_stop(self.data.close, self.index)
 
     def __loop(self):
         self._positions = []
@@ -136,6 +152,9 @@ class Strategy:
             self.index += 1
 
     def __init_subclass__(cls):
+        if hasattr(cls, 'Meta'):
+            cls._meta = cls.Meta
+            delattr(cls, 'Meta')
         indicators = {}
         for k, v in cls.__dict__.items():
             if isinstance(v, Indicator):
@@ -192,25 +211,29 @@ class Position:
     def move_stop(self, stop_price):
         self.stop_price = stop_price
 
-    def trigger_stop(self, price):
+    def trigger_stop(self, price, index):
+        ''' a check to see if the current price will trigger the stop
+        '''
         if not self.stop_price:
             return False
 
         if self.direction == 'long' and price < self.stop_price:
-            self.close(price)
+            self.close(price, index)
             return True
         elif self.direction == 'short' and price > self.stop_price:
-            self.close(price)
+            self.close(price, index)
             return True
         return False
     
-    def close(self, price):
+    def close(self, price, index):
         self.close_price = price
+        self.close_index = index
         if self.direction == 'long':
             self.profit += (price-self.price)*self.n
         elif self.direction == 'short':
             self.profit += (self.price-price)*self.n
         return self
+
 
 if __name__ == '__main__':
     print(top_of_list([1, 2, 2, 1, 4, 6, 2, 3], 4, 'min'))

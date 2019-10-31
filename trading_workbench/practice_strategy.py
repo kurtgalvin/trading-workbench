@@ -18,6 +18,9 @@ def bollinger_bands(df, n, dev):
     return df[['bb_upper', 'bb_mid', 'bb_lower']]
 
 class TestStrategy(Strategy):
+    class Meta:
+        plot=['close', 'bb_upper', 'bb_lower']
+        
     bb = Indicator(bollinger_bands, params=(20,2))
 
     def next(self):
@@ -51,3 +54,4 @@ if __name__ == '__main__':
     # plt.plot(x.df[['close', 'bb_upper', 'bb_mid', 'bb_lower']])
     # plt.show()
     x.results()
+    x.plot()
