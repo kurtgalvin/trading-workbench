@@ -43,7 +43,7 @@ class BackTest:
     def df(self):
         return self.strategy.df
 
-    def run(self):
+    def results(self):
         total_profit = 0
         wins = []
         losses = []

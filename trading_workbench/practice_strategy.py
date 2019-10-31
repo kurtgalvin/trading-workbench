@@ -50,4 +50,4 @@ if __name__ == '__main__':
     x = BackTest(TestStrategy, data)
     # plt.plot(x.df[['close', 'bb_upper', 'bb_mid', 'bb_lower']])
     # plt.show()
-    x.run()
+    x.results()
