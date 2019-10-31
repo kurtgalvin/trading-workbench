@@ -40,7 +40,7 @@ class TestStrategy(Strategy):
 
 if __name__ == '__main__':
     data = Fabricator({'file': 'env/oanda.ini'}, 'EUR_USD', 'M5')
-    candles = data.candles(100_000)
+    candles = data.candles(5_000)
     data = {
         'open': candles[0],
         'high': candles[1],

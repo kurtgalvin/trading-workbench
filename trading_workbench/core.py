@@ -44,8 +44,6 @@ class BackTest:
         return self.strategy.df
 
     def run(self):
-        for i in self.strategy:
-            pass
         total_profit = 0
         wins = []
         losses = []
@@ -56,8 +54,8 @@ class BackTest:
                 losses.append(i.profit)
             total_profit += i.profit
         print("Profit:", total_profit)
-        print("Wins:", len(wins), "Avg:", sum(wins)/len(wins), "Top:", top_of_list(wins, 5, 'max'), "Top 100 avg:", sum(top_of_list(wins, 100, 'max'))/100)
-        print("Losses:", len(losses), "Avg:", sum(losses)/len(losses), "Top:", top_of_list(losses, 5, 'min'), "Top 100 avg:", sum(top_of_list(losses, 100, 'min'))/100)
+        print("Wins:", len(wins), "Avg:", round(sum(wins)/len(wins), 3), "Top:", top_of_list(wins, 5, 'max'), "Top 100 avg:", round(sum(top_of_list(wins, 100, 'max'))/100, 3))
+        print("Losses:", len(losses), "Avg:", round(sum(losses)/len(losses), 3), "Top:", top_of_list(losses, 5, 'min'), "Top 100 avg:", round(sum(top_of_list(losses, 100, 'min'))/100, 3))
 
 
 class Strategy:
@@ -81,6 +79,7 @@ class Strategy:
         self.df = df
         self.index = largest_prev + largest_valid
         self.max_index = df.last_valid_index()
+        self.__loop()
 
     @property
     def data(self):
@@ -128,18 +127,13 @@ class Strategy:
         for pos in self._positions:
             pos.trigger_stop(self.data.close)
 
-    def __iter__(self):
+    def __loop(self):
         self._positions = []
         self.closed_positions = []
-        return self
-
-    def __next__(self):
-        if self.index <= self.max_index:
+        while self.index <= self.max_index:
             self.trigger_stops()
             self.next()
             self.index += 1
-            return self.index - 1
-        raise StopIteration
 
     def __init_subclass__(cls):
         indicators = {}
