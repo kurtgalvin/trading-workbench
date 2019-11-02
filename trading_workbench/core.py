@@ -35,6 +35,10 @@ def top_of_list(list_: list, n: int, mm: str) -> list:
     return [round(i, 3) for i in result]
 
 
+class Meta:
+    pass
+
+
 class BackTest:
     def __init__(self, strategy, data):
         self.strategy = strategy(data)
@@ -60,7 +64,7 @@ class BackTest:
     
     def plot(self):
         if hasattr(self.strategy, '_meta'):
-            for i in self.strategy._meta.plot:
+            for i in self.strategy._meta['plot']:
                 plt.plot(self.df[i])
         else:
             plt.plot(self.df.close)
@@ -75,6 +79,7 @@ class BackTest:
         plt.plot([i.index for i in short_pos], [i.stop_price for i in short_pos], 'd', color='#ff6961')
 
         plt.show()
+
 
 
 class Strategy:
@@ -150,7 +155,6 @@ class Strategy:
                 pos_index = self._positions.index(pos)
                 self._positions.pop(pos_index).close(self.data.close, self.index)
 
-
     def __loop(self):
         self._positions = []
         self.closed_positions = []
@@ -159,9 +163,30 @@ class Strategy:
             self.next()
             self.index += 1
 
+    @staticmethod
+    def __validate_meta(meta: Meta) -> dict:
+        meta_fields = {
+            'plot': lambda x: isinstance(x, list),
+            'spread': lambda x: isinstance(x, (float, int)),
+            'price': lambda x: isinstance(x, str) and x.upper() in ['B', 'M', 'A']
+        }
+        results = {
+            'plot': ['close'],
+            'spread': 0.0,
+            'price': 'M'
+        }
+        for k, v in meta.__dict__.items():
+            if k in meta_fields: 
+                if meta_fields[k](v):
+                    results[k] = v
+                else:
+                    raise ValueError(f'unsupported value or type: {v} for {k} in Strategy.Meta')
+        return results
+
+
     def __init_subclass__(cls):
         if hasattr(cls, 'Meta'):
-            cls._meta = cls.Meta
+            cls._meta = cls.__validate_meta(cls.Meta)
             delattr(cls, 'Meta')
         indicators = {}
         for k, v in cls.__dict__.items():
