@@ -53,7 +53,8 @@ class BackTest:
             if i.profit < 0:
                 losses.append(i.profit)
             total_profit += i.profit
-        print("Profit:", total_profit)
+        print("Profit:", round(total_profit, 3))
+        print("Not Done:", len(self.strategy.positions))
         print("Wins:", len(wins), "Avg:", round(sum(wins)/len(wins), 3), "Top:", top_of_list(wins, 5, 'max'), "Top 100 avg:", round(sum(top_of_list(wins, 100, 'max'))/100, 3))
         print("Losses:", len(losses), "Avg:", round(sum(losses)/len(losses), 3), "Top:", top_of_list(losses, 5, 'min'), "Top 100 avg:", round(sum(top_of_list(losses, 100, 'min'))/100, 3))
     
@@ -67,8 +68,12 @@ class BackTest:
         short_pos = list(filter(lambda x: x.is_short, self.strategy.closed_positions))
         plt.plot([i.index for i in long_pos], [i.price for i in long_pos], '>', color='#77dd77')
         plt.plot([i.close_index for i in long_pos], [i.close_price for i in long_pos], '<', color='#77dd77')
+        plt.plot([i.index for i in long_pos], [i.stop_price for i in long_pos], 'd', color='#77dd77')
+
         plt.plot([i.index for i in short_pos], [i.price for i in short_pos], '>', color='#ff6961')
         plt.plot([i.close_index for i in short_pos], [i.close_price for i in short_pos], '<', color='#ff6961')
+        plt.plot([i.index for i in short_pos], [i.stop_price for i in short_pos], 'd', color='#ff6961')
+
         plt.show()
 
 
@@ -140,8 +145,11 @@ class Strategy:
         return 
 
     def trigger_stops(self):
-        for pos in self._positions:
-            pos.trigger_stop(self.data.close, self.index)
+        for pos in self._positions.copy():
+            if pos.is_stop_triggered(self.data.close):
+                pos_index = self._positions.index(pos)
+                self._positions.pop(pos_index).close(self.data.close, self.index)
+
 
     def __loop(self):
         self._positions = []
@@ -211,17 +219,15 @@ class Position:
     def move_stop(self, stop_price):
         self.stop_price = stop_price
 
-    def trigger_stop(self, price, index):
+    def is_stop_triggered(self, price):
         ''' a check to see if the current price will trigger the stop
         '''
         if not self.stop_price:
             return False
 
-        if self.direction == 'long' and price < self.stop_price:
-            self.close(price, index)
+        if self.direction == 'long' and price <= self.stop_price:
             return True
-        elif self.direction == 'short' and price > self.stop_price:
-            self.close(price, index)
+        elif self.direction == 'short' and price >= self.stop_price:
             return True
         return False
     

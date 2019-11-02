@@ -19,8 +19,8 @@ def bollinger_bands(df, n, dev):
 
 class TestStrategy(Strategy):
     class Meta:
-        plot=['close', 'bb_upper', 'bb_lower']
-        
+        plot=['close', 'bb_upper', 'bb_mid', 'bb_lower']
+
     bb = Indicator(bollinger_bands, params=(20,2))
 
     def next(self):
@@ -43,7 +43,7 @@ class TestStrategy(Strategy):
 
 if __name__ == '__main__':
     data = Fabricator({'file': 'env/oanda.ini'}, 'EUR_USD', 'M5')
-    candles = data.candles(5_000)
+    candles = data.candles(100_000)
     data = {
         'open': candles[0],
         'high': candles[1],
@@ -51,7 +51,5 @@ if __name__ == '__main__':
         'close': candles[3]
     }
     x = BackTest(TestStrategy, data)
-    # plt.plot(x.df[['close', 'bb_upper', 'bb_mid', 'bb_lower']])
-    # plt.show()
     x.results()
-    x.plot()
+    # x.plot()
