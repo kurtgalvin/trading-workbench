@@ -34,6 +34,25 @@ def top_of_list(list_: list, n: int, mm: str) -> list:
                     break
     return [round(i, 3) for i in result]
 
+def apply_spread(price: float, spread: float, transaction: str, price_type: str) -> float:
+    ''' Get the price with spread applied 
+    Args
+    ----
+    price: Probably closing price of candle. \n
+    spread: Spread of the instrument. \n
+    transaction: buy or sell, 
+        buy if opening long or closing short,
+        sell if opening short or closing long. \n
+    price_type: B for bid, M for mid, A for ask. 
+        describes the type of price and if spread should be applied \n
+    '''
+    spread = spread/2 if price_type.upper() == 'M' and spread > 0 else spread
+    if transaction == 'buy' and price_type.upper() != 'A':
+        price += spread
+    elif transaction == 'sell' and price_type.upper() != 'B':
+        price -= spread
+    return price
+
 
 class Meta:
     pass
@@ -122,15 +141,30 @@ class Strategy:
         return list(filter(lambda x: x.is_short, self._positions))
 
     def open_position(self, direction, n=1, stop_price=False):
-        self._positions.append(Position(self.data.close, direction, n, self.index, stop_price=stop_price))
+        assert direction in ['long', 'short'], f"direction must be long or short, not {direction}"
+        transaction = 'buy' if direction == 'long' else 'sell' 
+        price = apply_spread(self.data.close, self._meta['spread'], transaction, self._meta['price'])
+        self._positions.append(Position(price, direction, n, self.index, stop_price=stop_price))
 
     def close_position(self, position=None):
+        ''' Close one position
+        '''
+        # if not position:
+        #     self.closed_positions.append(self._positions.pop(0).close(self.data.close, self.index))
+        # else:
+        #     closed_pos_index = self._positions.index(position)
+        #     closed_pos = self._positions.pop(closed_pos_index).close(self.data.close, self.index)
+        #     self.closed_positions.append(closed_pos)
         if not position:
-            self.closed_positions.append(self._positions.pop(0).close(self.data.close, self.index))
-        else:
+            pos = self._positions.pop(0)
+        elif position in self._positions:
             closed_pos_index = self._positions.index(position)
-            closed_pos = self._positions.pop(closed_pos_index).close(self.data.close, self.index)
-            self.closed_positions.append(closed_pos)
+            pos = self._positions.pop(closed_pos_index)
+        else:
+            pos = position
+        transaction = 'buy' if pos.direction == 'short' else 'sell'
+        price = apply_spread(self.data.close, self._meta['spread'], transaction, self._meta['price'])
+        self.closed_positions.append(pos.close(price, self.index))
 
     def close_positions(self, direction='all'):
         ''' Close all positions in a given direction.
@@ -146,14 +180,15 @@ class Strategy:
             positions_to_close = self._positions
             self._positions = []
         for pos in positions_to_close:
-            self.closed_positions.append(pos.close(self.data.close, self.index))
-        return 
+            # self.closed_positions.append(pos.close(self.data.close, self.index))
+            self.close_position(position=pos)
 
     def trigger_stops(self):
         for pos in self._positions.copy():
             if pos.is_stop_triggered(self.data.close):
                 pos_index = self._positions.index(pos)
-                self._positions.pop(pos_index).close(self.data.close, self.index)
+                pos_obj = self._positions.pop(pos_index).close(self.data.close, self.index)
+                self.closed_positions.append(pos_obj)
 
     def __loop(self):
         self._positions = []
@@ -172,7 +207,7 @@ class Strategy:
         }
         results = {
             'plot': ['close'],
-            'spread': 0.0,
+            'spread': 0,
             'price': 'M'
         }
         for k, v in meta.__dict__.items():
