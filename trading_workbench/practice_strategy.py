@@ -52,7 +52,7 @@ class TestStrategy(Strategy):
 
 if __name__ == '__main__':
     data = Fabricator({'file': 'env/oanda.ini'}, 'EUR_USD', 'M5')
-    candles = data.candles(100_000)
+    candles = data.candles(1_000)
     data = {
         'open': candles[0],
         'high': candles[1],
@@ -62,3 +62,4 @@ if __name__ == '__main__':
     x = BackTest(TestStrategy, data)
     x.results()
     # x.plot()
+    x.quantile_results(2, columns=['open', 'close', 'bb_upper', 'bb_mid', 'bb_lower'])

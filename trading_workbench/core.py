@@ -1,5 +1,7 @@
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+from keras.utils import to_categorical
 
 
 def top_of_list(list_: list, n: int, mm: str) -> list:
@@ -74,7 +76,7 @@ class BackTest:
         for i in self.strategy.closed_positions:
             if i.profit > 0:
                 wins.append(i.profit)
-            if i.profit < 0:
+            if i.profit <= 0:
                 losses.append(i.profit)
             total_profit += i.profit
         print("Profit:", round(total_profit, 3))
@@ -100,7 +102,47 @@ class BackTest:
 
         plt.show()
 
+    def quantile_results(self, n, columns=None, balance=True, split=0.2):
+        result_dict = {
+            'win': {
+                'values': [],
+                'lambda': lambda x: x.profit > 0,
+                'reverse': True
+            },
+            'loss': {
+                'values': [],
+                'lambda': lambda x: x.profit <= 0,
+                'reverse': False
+            }
+        }
+        for v_dict in result_dict.values():
+            positions = list(filter(v_dict['lambda'], self.strategy.closed_positions))
+            positions.sort(key=lambda x: x.profit, reverse=v_dict['reverse'])
+            for pos in positions:
+                pos_result = np.zeros((len(pos.historical_data), 0))
+                for _, v in pos.historical_data[columns].iteritems():
+                    pos_result = np.append(pos_result, to_categorical(pd.qcut(v, n, labels=False)), axis=1)
+                v_dict['values'].append(pos_result)
+            v_dict['values'] = np.array(v_dict['values'])
 
+        min_n = min([len(result_dict['win']['values']), len(result_dict['loss']['values'])])
+        test = int(min_n*split)
+        if balance and split:
+            return (
+                np.append(result_dict['loss']['values'][:min_n-test], result_dict['win']['values'][:min_n-test], axis=0),
+                to_categorical([0 for i in range(min_n-test)] + [1 for i in range(min_n-test)]),
+                np.append(result_dict['loss']['values'][min_n-test:min_n], result_dict['win']['values'][min_n-test:min_n], axis=0),
+                to_categorical([0 for i in range(test)] + [1 for i in range(test)])
+            )
+        elif balance:
+            return (
+                np.append(result_dict['loss']['values'][:min_n], result_dict['win']['values'][:min_n], axis=0),
+                to_categorical([0 for i in range(min_n)] + [1 for i in range(min_n)])
+            )
+        return (
+            np.append(result_dict['loss']['values'], result_dict['win']['values'], axis=0),
+            to_categorical([0 for i in range(len(result_dict['loss']['values']))] + [1 for i in range(len(result_dict['win']['values']))])
+        )
 
 class Strategy:
     def __init__(self, data):
@@ -121,7 +163,7 @@ class Strategy:
                 largest_valid = first
 
         self.df = df
-        self.index = largest_prev + largest_valid
+        self.index = largest_prev + largest_valid + self._meta['historical_count']
         self.max_index = df.last_valid_index()
         self.__loop()
 
