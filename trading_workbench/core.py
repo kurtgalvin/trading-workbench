@@ -60,6 +60,7 @@ class Meta:
 
 class BackTest:
     def __init__(self, strategy, data):
+        print("Running Backtest.")
         self.strategy = strategy(data)
 
     @property
@@ -144,17 +145,13 @@ class Strategy:
         assert direction in ['long', 'short'], f"direction must be long or short, not {direction}"
         transaction = 'buy' if direction == 'long' else 'sell' 
         price = apply_spread(self.data.close, self._meta['spread'], transaction, self._meta['price'])
-        self._positions.append(Position(price, direction, n, self.index, stop_price=stop_price))
+        historical_data = self.df.iloc[self.index-self._meta['historical_count']:self.index].reset_index(drop=True)
+        historical_data = historical_data if len(historical_data) else None
+        self._positions.append(Position(price, direction, n, self.index, stop_price=stop_price, historical_data=historical_data))
 
     def close_position(self, position=None):
         ''' Close one position
         '''
-        # if not position:
-        #     self.closed_positions.append(self._positions.pop(0).close(self.data.close, self.index))
-        # else:
-        #     closed_pos_index = self._positions.index(position)
-        #     closed_pos = self._positions.pop(closed_pos_index).close(self.data.close, self.index)
-        #     self.closed_positions.append(closed_pos)
         if not position:
             pos = self._positions.pop(0)
         elif position in self._positions:
@@ -180,7 +177,6 @@ class Strategy:
             positions_to_close = self._positions
             self._positions = []
         for pos in positions_to_close:
-            # self.closed_positions.append(pos.close(self.data.close, self.index))
             self.close_position(position=pos)
 
     def trigger_stops(self):
@@ -202,11 +198,13 @@ class Strategy:
     def __validate_meta(meta: Meta) -> dict:
         meta_fields = {
             'plot': lambda x: isinstance(x, list),
+            'historical_count': lambda x: isinstance(x, int),
             'spread': lambda x: isinstance(x, (float, int)),
             'price': lambda x: isinstance(x, str) and x.upper() in ['B', 'M', 'A']
         }
         results = {
             'plot': ['close'],
+            'historical_count': 0,
             'spread': 0,
             'price': 'M'
         }
@@ -260,12 +258,13 @@ class Indicator:
 
 
 class Position:
-    def __init__(self, price, direction, n, index, stop_price=False):
+    def __init__(self, price, direction, n, index, stop_price=False, historical_data=None):
         self.price = price
         self.direction = direction
         self.n = n
         self.index = index
         self.stop_price = stop_price
+        self.historical_data = historical_data
         self.profit = 0
 
     @property

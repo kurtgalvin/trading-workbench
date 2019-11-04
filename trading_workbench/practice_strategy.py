@@ -20,27 +20,34 @@ def bollinger_bands(df, n, dev):
 class TestStrategy(Strategy):
     class Meta:
         plot=['close', 'bb_upper', 'bb_mid', 'bb_lower']
-        # spread = 1.4/10_000
+        historical_count = 12
+        spread = 1.4/10_000
         price = 'M'
 
-    bb = Indicator(bollinger_bands, params=(20,2))
+    bb = Indicator(bollinger_bands, params=(14,2))
 
     def next(self):
         pos_long = self.positions_long
         pos_short = self.positions_short
         
         # open
-        if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower:
-            stop_price = self.bb.now.bb_lower - (self.bb.now.bb_mid - self.bb.now.bb_lower)
+        if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower or (
+            self.bb.now.bb_lower > self.bb.prev.bb_lower.iloc[0] and self.data.open < self.bb.now.bb_mid and self.data.close > self.bb.now.bb_mid
+        ):
+            stop_price = self.data.close - (self.bb.now.bb_mid - self.bb.now.bb_lower)
             self.open_position('long', n=10000, stop_price=stop_price)
-        elif self.data.open > self.bb.now.bb_upper and self.data.close < self.bb.now.bb_upper:
-            stop_price = self.bb.now.bb_upper + (self.bb.now.bb_upper - self.bb.now.bb_mid)
+        elif self.data.open > self.bb.now.bb_upper and self.data.close < self.bb.now.bb_upper or (
+            self.bb.now.bb_upper > self.bb.prev.bb_upper.iloc[0] and self.data.open > self.bb.now.bb_mid and self.data.close < self.bb.now.bb_mid
+        ):
+            stop_price = self.data.close + (self.bb.now.bb_upper - self.bb.now.bb_mid)
             self.open_position('short', n=10000, stop_price=stop_price)
 
         #close
-        if self.data.close > self.bb.now.bb_mid and pos_long:
+        # if self.data.close > self.bb.now.bb_mid and pos_long:
+        if self.data.close > self.bb.now.bb_upper and pos_long:
             self.close_positions('long')
-        elif self.data.close < self.bb.now.bb_mid and pos_short:
+        # elif self.data.close < self.bb.now.bb_mid and pos_short:
+        elif self.data.close < self.bb.now.bb_lower and pos_short:
             self.close_positions('short')
 
 if __name__ == '__main__':
@@ -54,4 +61,4 @@ if __name__ == '__main__':
     }
     x = BackTest(TestStrategy, data)
     x.results()
-    x.plot()
+    # x.plot()
