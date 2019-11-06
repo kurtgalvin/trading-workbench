@@ -4,6 +4,7 @@ import sys
 
 sys.path.insert(1, 'C:/Users/Kurt/Desktop/Maverick/maverick')
 from fabricator import Fabricator
+from model import Maverick
 
 
 def SMA(df, n):
@@ -20,7 +21,7 @@ def bollinger_bands(df, n, dev):
 class TestStrategy(Strategy):
     class Meta:
         plot=['close', 'bb_upper', 'bb_mid', 'bb_lower']
-        historical_count = 12
+        historical_count = 288
         spread = 1.4/10_000
         price = 'M'
 
@@ -31,14 +32,16 @@ class TestStrategy(Strategy):
         pos_short = self.positions_short
         
         # open
-        if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower or (
-            self.bb.now.bb_lower > self.bb.prev.bb_lower.iloc[0] and self.data.open < self.bb.now.bb_mid and self.data.close > self.bb.now.bb_mid
-        ):
+        if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower:
+        # if self.data.open < self.bb.now.bb_lower and self.data.close > self.bb.now.bb_lower or (
+        #     self.bb.now.bb_lower > self.bb.prev.bb_lower.iloc[0] and self.data.open < self.bb.now.bb_mid and self.data.close > self.bb.now.bb_mid
+        # ):
             stop_price = self.data.close - (self.bb.now.bb_mid - self.bb.now.bb_lower)
             self.open_position('long', n=10000, stop_price=stop_price)
-        elif self.data.open > self.bb.now.bb_upper and self.data.close < self.bb.now.bb_upper or (
-            self.bb.now.bb_upper > self.bb.prev.bb_upper.iloc[0] and self.data.open > self.bb.now.bb_mid and self.data.close < self.bb.now.bb_mid
-        ):
+        elif self.data.open > self.bb.now.bb_upper and self.data.close < self.bb.now.bb_upper:
+        # elif self.data.open > self.bb.now.bb_upper and self.data.close < self.bb.now.bb_upper or (
+        #     self.bb.now.bb_upper > self.bb.prev.bb_upper.iloc[0] and self.data.open > self.bb.now.bb_mid and self.data.close < self.bb.now.bb_mid
+        # ):
             stop_price = self.data.close + (self.bb.now.bb_upper - self.bb.now.bb_mid)
             self.open_position('short', n=10000, stop_price=stop_price)
 
@@ -52,7 +55,7 @@ class TestStrategy(Strategy):
 
 if __name__ == '__main__':
     data = Fabricator({'file': 'env/oanda.ini'}, 'EUR_USD', 'M5')
-    candles = data.candles(1_000)
+    candles = data.candles(3_000)
     data = {
         'open': candles[0],
         'high': candles[1],
@@ -62,4 +65,6 @@ if __name__ == '__main__':
     x = BackTest(TestStrategy, data)
     x.results()
     # x.plot()
-    x.quantile_results(2, columns=['open', 'close', 'bb_upper', 'bb_mid', 'bb_lower'])
+    x_train, y_train, x_val, y_val = x.quantile_results(18, columns=['open', 'close', 'bb_upper', 'bb_mid', 'bb_lower'], split=0.2)
+    mav = Maverick(x_train, y_train, validation_data=(x_val, y_val), callbacks=True)
+    mav.run_model(int(len(y_train)//25)+1, 0.6, 0.001, 90, 90, 90, epochs=1000)

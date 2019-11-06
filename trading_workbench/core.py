@@ -102,36 +102,44 @@ class BackTest:
 
         plt.show()
 
-    def quantile_results(self, n, columns=None, balance=True, split=0.2):
+    def quantile_results(self, n, columns=None, balance=True, split=0.2, direction=None):
         result_dict = {
             'win': {
                 'values': [],
+                'aux':[],
                 'lambda': lambda x: x.profit > 0,
-                'reverse': True
+                'reverse_sort': True
             },
             'loss': {
                 'values': [],
+                'aux': [],
                 'lambda': lambda x: x.profit <= 0,
-                'reverse': False
+                'reverse_sort': False
             }
         }
-        for v_dict in result_dict.values():
-            positions = list(filter(v_dict['lambda'], self.strategy.closed_positions))
-            positions.sort(key=lambda x: x.profit, reverse=v_dict['reverse'])
+        for dict_v in result_dict.values():
+            positions = list(filter(dict_v['lambda'], self.strategy.closed_positions))
+            if direction:
+                positions = list(filter(lambda x: x.direction == direction, positions))
+            positions.sort(key=lambda x: x.profit, reverse=dict_v['reverse_sort'])
             for pos in positions:
                 pos_result = np.zeros((len(pos.historical_data), 0))
+                dict_v['aux'].append(pos.time.hour)
                 for _, v in pos.historical_data[columns].iteritems():
                     pos_result = np.append(pos_result, to_categorical(pd.qcut(v, n, labels=False)), axis=1)
-                v_dict['values'].append(pos_result)
-            v_dict['values'] = np.array(v_dict['values'])
+                dict_v['values'].append(pos_result)
+            dict_v['values'] = np.array(dict_v['values'])
+            dict_v['aux'] = to_categorical(dict_v['aux'])
 
         min_n = min([len(result_dict['win']['values']), len(result_dict['loss']['values'])])
         test = int(min_n*split)
         if balance and split:
             return (
                 np.append(result_dict['loss']['values'][:min_n-test], result_dict['win']['values'][:min_n-test], axis=0),
+                np.append(result_dict['loss']['aux'][:min_n-test], result_dict['win']['aux'][:min_n-test], axis=0),
                 to_categorical([0 for i in range(min_n-test)] + [1 for i in range(min_n-test)]),
                 np.append(result_dict['loss']['values'][min_n-test:min_n], result_dict['win']['values'][min_n-test:min_n], axis=0),
+                np.append(result_dict['loss']['aux'][min_n-test:min_n], result_dict['win']['aux'][min_n-test:min_n], axis=0),
                 to_categorical([0 for i in range(test)] + [1 for i in range(test)])
             )
         elif balance:
@@ -143,6 +151,7 @@ class BackTest:
             np.append(result_dict['loss']['values'], result_dict['win']['values'], axis=0),
             to_categorical([0 for i in range(len(result_dict['loss']['values']))] + [1 for i in range(len(result_dict['win']['values']))])
         )
+
 
 class Strategy:
     def __init__(self, data):
@@ -189,7 +198,15 @@ class Strategy:
         price = apply_spread(self.data.close, self._meta['spread'], transaction, self._meta['price'])
         historical_data = self.df.iloc[self.index-self._meta['historical_count']:self.index].reset_index(drop=True)
         historical_data = historical_data if len(historical_data) else None
-        self._positions.append(Position(price, direction, n, self.index, stop_price=stop_price, historical_data=historical_data))
+        self._positions.append(Position(
+            price, 
+            direction, 
+            n, 
+            self.index, 
+            stop_price=stop_price, 
+            historical_data=historical_data,
+            time=self.data.datetime
+        ))
 
     def close_position(self, position=None):
         ''' Close one position
@@ -300,13 +317,14 @@ class Indicator:
 
 
 class Position:
-    def __init__(self, price, direction, n, index, stop_price=False, historical_data=None):
+    def __init__(self, price, direction, n, index, stop_price=False, historical_data=None, time=None):
         self.price = price
         self.direction = direction
         self.n = n
         self.index = index
         self.stop_price = stop_price
         self.historical_data = historical_data
+        self.time = time
         self.profit = 0
 
     @property
