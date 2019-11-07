@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -121,6 +123,7 @@ class BackTest:
             positions = list(filter(dict_v['lambda'], self.strategy.closed_positions))
             if direction:
                 positions = list(filter(lambda x: x.direction == direction, positions))
+            random.shuffle(positions)
             positions.sort(key=lambda x: x.profit, reverse=dict_v['reverse_sort'])
             for pos in positions:
                 pos_result = np.zeros((len(pos.historical_data), 0))
@@ -135,11 +138,11 @@ class BackTest:
         test = int(min_n*split)
         if balance and split:
             return (
-                np.append(result_dict['loss']['values'][:min_n-test], result_dict['win']['values'][:min_n-test], axis=0),
-                np.append(result_dict['loss']['aux'][:min_n-test], result_dict['win']['aux'][:min_n-test], axis=0),
+                np.append(result_dict['loss']['values'][test:min_n], result_dict['win']['values'][test:min_n], axis=0),
+                np.append(result_dict['loss']['aux'][test:min_n], result_dict['win']['aux'][test:min_n], axis=0),
                 to_categorical([0 for i in range(min_n-test)] + [1 for i in range(min_n-test)]),
-                np.append(result_dict['loss']['values'][min_n-test:min_n], result_dict['win']['values'][min_n-test:min_n], axis=0),
-                np.append(result_dict['loss']['aux'][min_n-test:min_n], result_dict['win']['aux'][min_n-test:min_n], axis=0),
+                np.append(result_dict['loss']['values'][:test], result_dict['win']['values'][:test], axis=0),
+                np.append(result_dict['loss']['aux'][:test], result_dict['win']['aux'][:test], axis=0),
                 to_categorical([0 for i in range(test)] + [1 for i in range(test)])
             )
         elif balance:
