@@ -129,7 +129,10 @@ class BackTest:
                 pos_result = np.zeros((len(pos.historical_data), 0))
                 dict_v['aux'].append(pos.time.hour)
                 for _, v in pos.historical_data[columns].iteritems():
-                    pos_result = np.append(pos_result, to_categorical(pd.qcut(v, n, labels=False)), axis=1)
+                    c_result = to_categorical(pd.qcut(v, n, labels=False, duplicates='drop'))
+                    if c_result.shape[1] != n:
+                        c_result = np.append(c_result, np.zeros((c_result.shape[0], n-c_result.shape[1])), axis=1)
+                    pos_result = np.append(pos_result, c_result, axis=1)
                 dict_v['values'].append(pos_result)
             dict_v['values'] = np.array(dict_v['values'])
             dict_v['aux'] = to_categorical(dict_v['aux'])
