@@ -1,5 +1,3 @@
-import random
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -158,7 +156,7 @@ class Strategy:
             n, 
             self.index, 
             stop_price=stop_price, 
-            historical_data=historical_data,
+            history=historical_data,
             time=self.data.datetime
         ))
 
@@ -271,13 +269,13 @@ class Indicator:
 
 
 class Position:
-    def __init__(self, price, direction, n, index, stop_price=False, historical_data=None, time=None):
+    def __init__(self, price, direction, n, index, stop_price=False, history=None, time=None):
         self.price = price
         self.direction = direction
         self.n = n
         self.index = index
         self.stop_price = stop_price
-        self.historical_data = historical_data
+        self.history = history
         self.time = time
         self.profit = 0
 
@@ -288,6 +286,10 @@ class Position:
     @property
     def is_short(self):
         return bool(self.direction == 'short')
+
+    @property
+    def is_profitable(self):
+        return bool(self.profit > 0)
 
     def move_stop(self, stop_price):
         self.stop_price = stop_price
