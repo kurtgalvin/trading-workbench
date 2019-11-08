@@ -71,18 +71,21 @@ class BackTest:
     def df(self):
         return self.strategy.df
 
+    @property
+    def positions(self):
+        return self.strategy.closed_positions
+
     def results(self):
         total_profit = 0
         wins = []
         losses = []
-        for i in self.strategy.closed_positions:
+        for i in self.positions:
             if i.profit > 0:
                 wins.append(i.profit)
             if i.profit <= 0:
                 losses.append(i.profit)
             total_profit += i.profit
         print("Profit:", round(total_profit, 3))
-        print("Not Done:", len(self.strategy.positions))
         print("Wins:", len(wins), "Avg:", round(sum(wins)/len(wins), 3), "Top:", top_of_list(wins, 5, 'max'), "Top 100 avg:", round(sum(top_of_list(wins, 100, 'max'))/100, 3))
         print("Losses:", len(losses), "Avg:", round(sum(losses)/len(losses), 3), "Top:", top_of_list(losses, 5, 'min'), "Top 100 avg:", round(sum(top_of_list(losses, 100, 'min'))/100, 3))
     
@@ -92,8 +95,8 @@ class BackTest:
                 plt.plot(self.df[i])
         else:
             plt.plot(self.df.close)
-        long_pos = list(filter(lambda x: x.is_long, self.strategy.closed_positions))
-        short_pos = list(filter(lambda x: x.is_short, self.strategy.closed_positions))
+        long_pos = list(filter(lambda x: x.is_long, self.positions))
+        short_pos = list(filter(lambda x: x.is_short, self.positions))
         plt.plot([i.index for i in long_pos], [i.price for i in long_pos], '>', color='#77dd77')
         plt.plot([i.close_index for i in long_pos], [i.close_price for i in long_pos], '<', color='#77dd77')
         plt.plot([i.index for i in long_pos], [i.stop_price for i in long_pos], 'd', color='#77dd77')
@@ -120,7 +123,7 @@ class BackTest:
             }
         }
         for dict_v in result_dict.values():
-            positions = list(filter(dict_v['lambda'], self.strategy.closed_positions))
+            positions = list(filter(dict_v['lambda'], self.positions))
             if direction:
                 positions = list(filter(lambda x: x.direction == direction, positions))
             random.shuffle(positions)
