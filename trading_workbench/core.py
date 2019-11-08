@@ -3,7 +3,6 @@ import random
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from keras.utils import to_categorical
 
 
 def top_of_list(list_: list, n: int, mm: str) -> list:
@@ -106,60 +105,6 @@ class BackTest:
         plt.plot([i.index for i in short_pos], [i.stop_price for i in short_pos], 'd', color='#ff6961')
 
         plt.show()
-
-    def quantile_results(self, n, columns=None, balance=True, split=0.2, direction=None):
-        result_dict = {
-            'win': {
-                'values': [],
-                'aux':[],
-                'lambda': lambda x: x.profit > 0,
-                'reverse_sort': True
-            },
-            'loss': {
-                'values': [],
-                'aux': [],
-                'lambda': lambda x: x.profit <= 0,
-                'reverse_sort': False
-            }
-        }
-        for dict_v in result_dict.values():
-            positions = list(filter(dict_v['lambda'], self.positions))
-            if direction:
-                positions = list(filter(lambda x: x.direction == direction, positions))
-            random.shuffle(positions)
-            positions.sort(key=lambda x: x.profit, reverse=dict_v['reverse_sort'])
-            for pos in positions:
-                pos_result = np.zeros((len(pos.historical_data), 0))
-                dict_v['aux'].append(pos.time.hour)
-                for _, v in pos.historical_data[columns].iteritems():
-                    c_result = to_categorical(pd.qcut(v, n, labels=False, duplicates='drop'))
-                    if c_result.shape[1] != n:
-                        c_result = np.append(c_result, np.zeros((c_result.shape[0], n-c_result.shape[1])), axis=1)
-                    pos_result = np.append(pos_result, c_result, axis=1)
-                dict_v['values'].append(pos_result)
-            dict_v['values'] = np.array(dict_v['values'])
-            dict_v['aux'] = to_categorical(dict_v['aux'])
-
-        min_n = min([len(result_dict['win']['values']), len(result_dict['loss']['values'])])
-        test = int(min_n*split)
-        if balance and split:
-            return (
-                np.append(result_dict['loss']['values'][test:min_n], result_dict['win']['values'][test:min_n], axis=0),
-                np.append(result_dict['loss']['aux'][test:min_n], result_dict['win']['aux'][test:min_n], axis=0),
-                to_categorical([0 for i in range(min_n-test)] + [1 for i in range(min_n-test)]),
-                np.append(result_dict['loss']['values'][:test], result_dict['win']['values'][:test], axis=0),
-                np.append(result_dict['loss']['aux'][:test], result_dict['win']['aux'][:test], axis=0),
-                to_categorical([0 for i in range(test)] + [1 for i in range(test)])
-            )
-        elif balance:
-            return (
-                np.append(result_dict['loss']['values'][:min_n], result_dict['win']['values'][:min_n], axis=0),
-                to_categorical([0 for i in range(min_n)] + [1 for i in range(min_n)])
-            )
-        return (
-            np.append(result_dict['loss']['values'], result_dict['win']['values'], axis=0),
-            to_categorical([0 for i in range(len(result_dict['loss']['values']))] + [1 for i in range(len(result_dict['win']['values']))])
-        )
 
 
 class Strategy:
